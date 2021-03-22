@@ -5,7 +5,7 @@ var LAYOUT;
 var HIDDEN;
 var STREAMER_MODE;
 var VERSION;
-var DIFFICULTYTEXT = [ "Very Easy", "Easy", "Medium", "Hard", "Very Hard"];
+var DIFFICULTYTEXT = ["Very Easy", "Easy", "Medium", "Hard", "Very Hard"];
 
 const ALL_COLOURS = ["", "bluesquare", "greensquare", "redsquare", "yellowsquare", "pinksquare", "brownsquare"];
 var COLOUR_SELECTIONS = [
@@ -50,6 +50,9 @@ const TOOLTIP_TEXT_ATTR_NAME = "data-tooltiptext";
 const TOOLTIP_IMAGE_ATTR_NAME = "data-tooltipimg";
 const COLOUR_COUNT_SETTING_NAME = "bingoColourCount";
 const COLOUR_SYMBOLS_SETTING_NAME = "bingoColourSymbols";
+const CURRENT_SHEET_PROGRESS = "bingoCurrentSheetProcess";
+const LATEST_SHEET_PROGRESS = "bingoLatestSheetProcess";
+const SHEET_SAVE_PREFIX = "bingoSheetSave_";
 
 // Dropdown menu handling.
 $(document).click(function(event) {
@@ -204,39 +207,50 @@ function loadSettings()
 {
 	getSettingsFromURL();
 	getSettingsFromLocalStorage();
+	checkRecentCurrentSheet();
+	generateSavesItems();
 }
 
-function getSettingsFromURL()
-{
+function getSettingsFromURLSplitted(url) {
 	/**
 	 * URL Format: ?s=[difficulty]-[hideTable]_[seed]
 	 *
 	 * The seed should always be last, so in order to be able to add more settings,
 	 * settings and the seed are separated from eachother.
 	 */
-	var split = gup("s").split("_");
-	if (split.length == 2)
-	{
-		var settings = split[0].split("-");
-		SEED = split[1];
+	 var seed, difficulty, version, hidden, streamerMode;
+	 
+	 if (url === undefined) url = gup("s");
+	 var split = url.split("_");
+	 if (split.length == 2)
+	 {
+		 var settings = split[0].split("-");
+		 seed = split[1];
 
-		DIFFICULTY = parseInt(settings[0]);
-		HIDDEN = settings[1] == "1";
-		STREAMER_MODE = settings[2] == "1";
-		var selectedVersion = settings[3];
-	}
+		 difficulty = parseInt(settings[0]);
+		 hidden = settings[1] == "1";
+		 streamerMode = settings[2] == "1";
+		 var selectedVersion = settings[3];
+	 }
 
-	// Set default values
-	if (isNaN(DIFFICULTY) || DIFFICULTY < 1 || DIFFICULTY > 5)
-	{
-		DIFFICULTY = 3;
-	}
+	 // Set default values
+	 if (isNaN(difficulty) || difficulty < 1 || difficulty > 5)
+	 {
+		 difficulty = 3;
+	 }
 
-	VERSION = getVersion(selectedVersion);
-	if (VERSION == undefined) {
-		VERSION = getVersion(LATEST_VERSION);
-	}
+	 version = getVersion(selectedVersion);
+	 if (version == undefined) {
+		 version = getVersion(LATEST_VERSION);
+	 }
+	 
+	 return [seed, difficulty, version, hidden, streamerMode];
+}
 
+function getSettingsFromURL()
+{
+  [SEED, DIFFICULTY, VERSION, HIDDEN, STREAMER_MODE] = getSettingsFromURLSplitted();
+	
 	// If there isn't a seed, make a new one
 	if (!SEED)
 	{
@@ -256,7 +270,7 @@ function getSettingsFromURL()
 		LAYOUT = "random";
 		// document.getElementById("whatlayout").innerHTML="Random Layout";
 	}
-
+	
 	updateHidden();
 	updateStreamerMode();
 	updateDifficulty();
@@ -446,6 +460,7 @@ function changeDifficulty(value)
 	updateDifficulty();
 	generateNewSheet();
 	pushNewUrl();
+	updateCurrentSheetProgress();
 }
 
 function updateColourCount()
@@ -483,11 +498,17 @@ function toggleColourSymbols(value)
 	pushNewLocalSetting(COLOUR_SYMBOLS_SETTING_NAME, COLOURSYMBOLS);	
 }
 
-function pushNewUrl()
+function generateNewUrlParam()
 {
 	var hidden = HIDDEN ? "1" : "0";
 	var streamerMode = STREAMER_MODE ? "1" : "0";
-	window.history.pushState('', "Sheet", "?s=" + DIFFICULTY + "-" + hidden + "-" + streamerMode + "-" + VERSION.id + "_" + SEED);
+	return DIFFICULTY + "-" + hidden + "-" + streamerMode + "-" + VERSION.id + "_" + SEED;
+}
+
+function pushNewUrl(url)
+{
+	if (url === undefined) url = generateNewUrlParam();
+	window.history.pushState('', "Sheet", "?s=" + url);
 }
 
 function pushNewLocalSetting(name, value)
@@ -498,7 +519,24 @@ function pushNewLocalSetting(name, value)
 	}
 	catch (ignored)
 	{
+		return false;
 	}
+	return true;
+}
+
+function isLocalStorageIsAvailable()
+{
+	if (typeof localStorage !== 'undefined') {
+		try {
+			localStorage.setItem('feature_test', 'yes');
+			if (localStorage.getItem('feature_test') === 'yes') {
+				localStorage.removeItem('feature_test');
+				return true;
+			}
+		} catch(e) {
+		}
+	}
+	return false;
 }
 
 function getVersion(versionId)
@@ -543,6 +581,7 @@ function changeVersion(versionId)
 	generateNewSheet();
 	updateVersion();
 	pushNewUrl();
+	updateCurrentSheetProgress();
 }
 
 function fillVersionSelection()
@@ -571,6 +610,198 @@ function setSquareColor(square, colorClass)
 {
 	ALL_COLOURS.forEach(c => square.removeClass(c));
 	square.addClass(colorClass);
+	updateCurrentSheetProgress();
+}
+
+function checkRecentCurrentSheet()
+{
+	if (! isLocalStorageIsAvailable()) {
+		return;
+	}
+	
+	var latestSheet = JSON.parse(localStorage.getItem(CURRENT_SHEET_PROGRESS));
+	if (
+		latestSheet 
+		&& latestSheet.haveMarkedSquares 
+		&& latestSheet.timestamp > new Date(Date.now() - 15 * 60000).getTime()
+	) {
+		localStorage.setItem(LATEST_SHEET_PROGRESS, localStorage.getItem(CURRENT_SHEET_PROGRESS));
+		console.log('ASK USER TO USE STORED SHEET');
+		$('#recentSheetAlert').show();
+	}
+}
+
+// ASYNC returns base64 of bingo sheet image 
+async function generateSheetImage(size) {
+	if (size === undefined) size = 128;
+	var scrollWas = window.pageYOffset;
+	window.scrollTo(0, 0);
+
+	var a = await html2canvas(document.querySelector("#bingo"))
+	  .then(canvas => {
+			window.scrollTo(0, scrollWas);
+			var resizedCanvas = document.createElement("canvas");
+			var resizedContext = resizedCanvas.getContext("2d");
+			resizedCanvas.height = size;
+			resizedCanvas.width = size;
+			resizedContext.drawImage(canvas, 0, 0, size, size);
+			return resizedCanvas.toDataURL();
+		});
+		
+	return a;
+}
+
+function toggleSaves(element) {
+	$(element).closest('.save-button').toggleClass('save-hidden');
+	$('.saves-wrapper').toggleClass('saves-wrapper--hidden');
+}
+
+const SAVE_DATETIME_OPTIONS = {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: false};
+function generateSavesItems() {
+	$('.saves-list .save-bingo:not(.save-template)').remove();
+	getSaves().forEach(function(el, numb) {
+		var $template = $('.save-bingo.save-template').clone();
+		$template.removeClass('save-template').attr('data-save-id', el.key);
+		$template.find('.save-bingo-image img').attr('src', el.data.thumbnail || 'og-image.png');
+		
+		var [seed, diff, version] = getSettingsFromURLSplitted(el.data.settings);
+		$template.find('.save-bingo-text--settings').text('Seed: ' + seed + ' Difficulty: ' + diff + ' Version: ' + version.name);
+		
+		var date = new Date(el.data.timestamp);
+		$template.find('.save-bingo-text--time').text(date.toLocaleDateString("en-US", SAVE_DATETIME_OPTIONS) + ' (' + timeSince(date) + ')');
+		$('.saves-list').append($template);
+	});
+}
+
+function saveBingoLoad(element) {
+	var key = LATEST_SHEET_PROGRESS;
+	if (element !== undefined) {
+		key = $(element).closest('.save-bingo').attr('data-save-id');
+	}
+	
+	var sheetToLoad = localStorage.getItem(key);
+	if (sheetToLoad) {
+		sheetToLoad = JSON.parse(sheetToLoad);
+		pushNewUrl(sheetToLoad.settings);
+		loadSettings();
+		forEachSquare((i, square) => {
+			var saveSquare = sheetToLoad.squares[i];
+			
+			// set goal text /0\
+			square.contents().filter(function(){ return this.nodeType == NODE_TYPE_TEXT; }).remove();
+			square.append(saveSquare.name);
+			
+			square.addClass(saveSquare.class)
+				// .text(saveSquare.name)
+				.attr(TOOLTIP_TEXT_ATTR_NAME, saveSquare.tooltip)
+				.attr(TOOLTIP_IMAGE_ATTR_NAME, saveSquare.tolltipimg);
+		});
+	} else {
+		alert('Failed to load saved bingo sheet :c');
+	}
+}
+
+function saveBingoOverwrite(element) {
+	var key = $(element).closest('.save-bingo').attr('data-save-id');
+	saveCurrentProgress(key);
+}
+
+function saveBingoDelete(element) {
+	var $element = $(element).closest('.save-bingo');
+	var key = $element.attr('data-save-id');
+	localStorage.removeItem(key);
+	$element.remove();
+}
+
+async function saveCurrentProgress(saveKey) {
+	var sheetBase64 = await generateSheetImage(256);
+	if (saveKey === undefined) saveKey = SHEET_SAVE_PREFIX + getSavesCount();
+	processSheetAndStoreAs(saveKey, sheetBase64);
+	setTimeout(function(){
+		generateSavesItems();
+	}, 0);
+}
+
+function getSavesCount() {
+	return getSaves().length;
+}
+
+function getSaves() {
+	var saves = [];
+	for (i = 0; i < window.localStorage.length; i++) {
+		key = window.localStorage.key(i);
+		if (key.slice(0, SHEET_SAVE_PREFIX.length) === SHEET_SAVE_PREFIX) {
+			saves.push({
+				key: key,
+				data: JSON.parse(window.localStorage.getItem(key))
+			});
+		}
+	}
+	
+	saves.sort(function(a, b) {
+	  var keyA = parseInt(a.key.slice(SHEET_SAVE_PREFIX.length)),
+	    keyB = parseInt(b.key.slice(SHEET_SAVE_PREFIX.length));
+	  // Compare the 2 dates
+	  if (keyA < keyB) return 1;
+	  if (keyA > keyB) return -1;
+	  return 0;
+	});
+	return saves;
+}
+
+
+
+
+
+
+
+var sheetProgressDebounce = null;
+function updateCurrentSheetProgress()
+{
+	if(sheetProgressDebounce) clearTimeout(sheetProgressDebounce);
+	sheetProgressDebounce = setTimeout(function() {
+			updateCurrentSheetProgressDebounced()
+	}, 500);
+}
+
+function updateCurrentSheetProgressDebounced()
+{
+	if (! isLocalStorageIsAvailable()) {
+		return;
+	}
+	
+	processSheetAndStoreAs(CURRENT_SHEET_PROGRESS);
+}
+
+function processSheetAndStoreAs(localStorageKey, sheetImage) {
+	if (sheetImage === undefined) sheetImage = '';
+	// setTimeout is required for some reason, cuz square.text() might not be changed yet
+	setTimeout(function() {
+		var isHaveMarkedSquares = false;
+		squares = [];
+		forEachSquare((i, square) => {
+			var squareClass = square.attr('class') || '';
+			isHaveMarkedSquares |= (squareClass != '');
+			squares.push({
+				id: square.attr('id'),
+				name: square.text(),
+				class: squareClass,
+				tooltip: square.attr(TOOLTIP_TEXT_ATTR_NAME),
+				tolltipimg: square.attr(TOOLTIP_IMAGE_ATTR_NAME)
+			});
+		});
+		result = {
+			squares: squares,
+			settings: generateNewUrlParam(),
+			timestamp: Date.now(),
+			thumbnail: sheetImage,
+			haveMarkedSquares: isHaveMarkedSquares
+		};
+
+		if (! pushNewLocalSetting(localStorageKey, JSON.stringify(result))) {
+			alert('Failed to store current progress :c');
+		}
+	}, 0);
 }
 
 function copySeedToClipboard(id, event)
@@ -639,6 +870,38 @@ function createGoalExport()
 function hideGoalExport()
 {
 	$("#export").hide();
+}
+
+function closeAlert(element)
+{
+	$(element).closest('.alert').hide();
+}
+
+// calculate 'ago'
+function timeSince(date) {
+  var seconds = Math.floor((new Date() - date) / 1000);
+  var interval = seconds / 31536000;
+
+  if (interval > 1) {
+    return Math.floor(interval) + " years";
+  }
+  interval = seconds / 2592000;
+  if (interval > 1) {
+    return Math.floor(interval) + " months";
+  }
+  interval = seconds / 86400;
+  if (interval > 1) {
+    return Math.floor(interval) + " days";
+  }
+  interval = seconds / 3600;
+  if (interval > 1) {
+    return Math.floor(interval) + " hours";
+  }
+  interval = seconds / 60;
+  if (interval > 1) {
+    return Math.floor(interval) + " minutes";
+  }
+  return Math.floor(seconds) + " seconds";
 }
 
 // Made this a function for readability and ease of use

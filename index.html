@@ -7,6 +7,7 @@
 		<link rel="stylesheet" href="bingo.css" type="text/css" />
 		
 		<script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+		<script src="html2canvas.min.js"></script>
 		
 		<script src="generator_v1.js"></script>
 		<script src="generator_v2.js"></script>
@@ -118,8 +119,36 @@
 				</div>
 			</div>
 		</section>
-		<a class="stream-exit-text" href="#" onclick='toggleStreamerMode();event.preventDefault();'>Exit Streamer Mode</a>
-		<a class="stream-exit-text" href="#" onclick='popoutBingoCard();event.preventDefault();'>Pop out Bingo Card</a>
+		<section id="saves" class="saves-section">
+			<div class="saves-content">
+				<div class="saves-buttons">
+					<button class="button save-button" onclick="saveCurrentProgress();">Save Current Progress</button>
+					<button class="button save-button save-hidden" onclick="toggleSaves(this);"><span class="save-toggle--show">Show</span><span class="save-toggle--hide">Hide</span> Saved Bingo</button>
+				</div>
+				<div class="saves-wrapper saves-wrapper--hidden">
+					<div class="saves-list">
+						<div class="save-template save-bingo" data-save-id="">
+							<div class="save-bingo-image">
+								<img src="og-image.png">
+							</div>
+							<div class="save-bingo-content">
+								<div class="save-bingo-text">
+									<p class="save-bingo-text--settings">Settings</p>
+									<p class="save-bingo-text--time">Time</p>
+								</div>
+								<div class="save-bingo-buttons">
+									<button class="button save-button" onclick="saveBingoOverwrite(this);">Overwrite</button>
+									<button class="button save-button" onclick="saveBingoLoad(this);">Load</button>
+									<button class="button save-button" onclick="saveBingoDelete(this);">Delete</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+		<a class="stream-exit-text" href="javascript:;" onclick="toggleStreamerMode();">Exit Streamer Mode</a>
+		<a class="stream-exit-text" href="javascript:;" onclick="popoutBingoCard();">Pop out Bingo Card</a>
 		<section id="rules-section">
 			<h2>Version</h2>
 			<p>The various versions of the Bingo are designed for specific versions of Vanilla Minecraft (Java Edition, Bedrock versions have minor differences). Try to match versions whenever possible for the best experience.</p>
@@ -163,6 +192,14 @@
 			<p>The goals of the current sheet as JSON:</p>
 			<textarea readonly="readonly"></textarea>
 			<a href="javascript:hideGoalExport()">Hide</a>
+		</div>
+		<div id="recentSheetAlert" class="alert" style="display: none">
+			<button class="button button-small alert-close" onclick="closeAlert(this);">X</button>
+			<p>Looks like you have some unfinished progress, want to restore recent bingo sheet?</p>
+			<div class="alert-buttons">
+				<button class="button" onclick="saveBingoLoad();closeAlert(this);">Yes, restore</button>
+				<button class="button" onclick="clearCurrentBingoSheet();closeAlert(this);">No, discart</button>
+			</div>
 		</div>
 	</body>
 </html>

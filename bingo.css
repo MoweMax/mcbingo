@@ -388,6 +388,91 @@ html, body {
 	width: 250px;
 }
 
+.save-button {
+	padding: 0 20px; 
+}
+
+.saves-section {
+	background: #333;
+	margin: 10px 0;
+	padding: 10px 0;
+}
+
+.saves-buttons {
+	display: flex;
+  justify-content: space-evenly;
+}
+
+.save-button.save-hidden > .save-toggle--hide,
+.save-button:not(.save-hidden) > .save-toggle--show {
+	display: none;
+}
+
+.saves-wrapper {
+	overflow: hidden;
+	max-height: 300px;
+	transition: max-height 0.3s ease-in-out;
+}
+
+.saves-wrapper--hidden {
+	max-height: 0;
+}
+
+.saves-list {
+	height: 280px;
+	margin-top: 10px 0;
+	overflow-y: scroll;
+}
+
+.saves-content {
+	width: 700px;
+	margin: 0 auto;
+	font-family: settingsFont;
+	color: white;
+}
+
+.save-bingo {
+	height: 120px;
+	display: flex;
+	border-top: 2px solid #949494;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.save-bingo.save-template {
+	display: none;
+}
+
+.save-bingo-image {
+	height: 100%;
+}
+.save-bingo-image img {
+	height: calc(100% - 10px);
+	margin: 5px; 
+}
+
+.save-bingo-content {
+	width: 100%;
+  margin-left: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.save-bingo-text,
+.save-bingo-buttons {
+	height: 50%;
+	display: flex;
+	justify-content: space-evenly;
+}
+
+.save-bingo-text {
+	flex-direction: column;
+}
+
+.save-bingo-buttons {
+  align-items: center;
+}
+
 .dropdown-holder  {
 	position: relative;
 }
@@ -558,3 +643,50 @@ body.streamer-mode {
 }
 
 /* End Export Popup */
+
+.alert {
+	position: absolute;
+	top: 115px;
+	right: 20px;					/*  bingo        /  padding  / right / space between bingo */
+	max-width: calc(((100vw - 730px) / 2) - (10px * 2) - 20px - 10px);
+	min-width: 20px;
+	font-family: settingsFont;
+	color: white;
+	padding: 10px;
+	border: 2px solid black;
+	border-radius: 2px;
+	background-image: url("stone-tile.png");
+	z-index: 0;
+}
+
+.alert .alert-close {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+  padding: 0px 5px;
+}
+
+.alert:after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  background: rgba(0,0,0,0.45);
+}
+
+.alert p {
+	margin-right: 30px;
+	margin-bottom: 10px;
+	text-shadow: 2px 2px 0px #333;
+}
+
+.alert .alert-buttons {
+	display: flex;
+	flex-direction: column;
+}
+.alert .alert-buttons button + button {
+	margin-top: 10px;
+}
